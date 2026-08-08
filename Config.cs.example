@@ -1,0 +1,140 @@
+using CraftStation.Core.Models;
+
+namespace CraftStation.Core;
+
+/// <summary>
+/// CraftStation 全局配置模板（示例）。
+///
+/// 使用方式：
+/// 1. 将本文件复制为 Config.cs；
+/// 2. 在微软登录区域填入你自己的 Azure 应用 Client ID（与回调地址需与 Azure 后台一致）；
+/// 3. 其余默认值可按需修改。
+///
+/// 本文件是公开模板：请勿填写真实 Client ID 后直接上传，
+/// 真实值只保留在本地 Config.cs（已被 .gitignore 忽略）。
+/// </summary>
+public static class Config
+{
+    // ---------- 应用标识 ----------
+    public const string AppName = "CraftStation";
+    public const string AppVersion = "1.0.0";
+    public static string UserAgent => $"{AppName}/{AppVersion}";
+    public const string DefaultUiLanguage = "zh-CN";
+    public const string DefaultGameLanguage = "zh_CN";
+
+    // ---------- 目录 / 文件 ----------
+    public const string DataDirectoryName = "data";
+    public const string GameDirectoryName = ".minecraft";
+    public const string InstancesDirectoryName = "instances";
+    public const string LogsDirectoryName = "logs";
+    public const string ConfigFileName = "config.json";
+    public const string AccountsFileName = "accounts.bin";
+    public const string OfflineAccountsFileName = "offline_accounts.json";
+    public const string InstancesIndexFileName = "instances.json";
+    public const string ServersFileName = "servers.json";
+    public const string LauncherLogFilePattern = "launcher-.log";
+    public const string GameLogFilePattern = "game-{0}-{1:yyyyMMdd-HHmmss}.log";
+    public const string WebAssetsDirectoryName = "Assets";
+    public const string WebRootDirectoryName = "Web";
+    public const string WebViewVirtualHostName = "app.local";
+    public static string WebViewStartUrl => $"https://{WebViewVirtualHostName}/index.html";
+    public const string WebViewBackgroundColorHex = "#0D0D0D";
+    public const int BridgeMaxLogLines = 2000;
+
+    // ---------- 窗口 ----------
+    public const double WindowDefaultWidth = 1280;
+    public const double WindowDefaultHeight = 820;
+    public const double WindowMinWidth = 960;
+    public const double WindowMinHeight = 600;
+
+    // ---------- 微软登录 ----------
+    public const string MicrosoftTenant = "consumers";
+    // 请替换为你在 Azure 注册的应用 Client ID。
+    public const string MicrosoftClientId = "PASTE_YOUR_AZURE_CLIENT_ID_HERE";
+    // 回调地址需与 Azure 后台「移动和桌面应用程序」中配置的一致。
+    public const string MicrosoftRedirectUri = "http://localhost:49185";
+    // 旧版内置 Client ID，仅用于自动迁移旧配置，一般无需修改。
+    public const string LegacyMicrosoftClientId = "499c8d36-be2a-4231-9ebd-ef291b7bb64c";
+
+    // ---------- 下载镜像 ----------
+    public const string BmclapiBase = "https://bmclapi2.bangbang93.com";
+    public const string MojangVersionManifestV2 = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json";
+    public const string MojangVersionManifest = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
+    public const string MojangVersionManifestHost = "launchermeta.mojang.com";
+    public const string MojangVersionManifestV2Path = "/mc/game/version_manifest_v2.json";
+    public const string MojangVersionManifestPath = "/mc/game/version_manifest.json";
+    public const string MojangLibrariesBase = "https://libraries.minecraft.net";
+    public const string MojangResourcesBase = "https://resources.download.minecraft.net";
+    public const string MojangLibrariesHost = "libraries.minecraft.net";
+    public const string MojangResourcesHost = "resources.download.minecraft.net";
+    public const string MojangLibrariesPathPrefix = "/libraries/";
+    public const string MojangAssetsPathPrefix = "/assets/";
+    public const int HttpClientTimeoutSeconds = 120;
+    public const int PooledConnectionLifetimeMinutes = 5;
+    public const int MinConnectionsPerServer = 4;
+
+    // ---------- 内容平台 ----------
+    public const string ModrinthApiBase = "https://api.modrinth.com/v2";
+    public const int ModrinthTimeoutSeconds = 60;
+    public const int ModrinthDefaultSearchLimit = 30;
+    public const string CurseForgeApiBase = "https://api.curseforge.com/v1";
+
+    // ---------- Minecraft 服务 ----------
+    public const string MinecraftServicesBase = "https://api.minecraftservices.com";
+    public static string MinecraftSkinUploadUrl => $"{MinecraftServicesBase}/minecraft/profile/skins";
+
+    // ---------- 更新检查 ----------
+    public const string GitHubApiBase = "https://api.github.com";
+    public const int UpdateTimeoutSeconds = 20;
+
+    // ---------- 服务器 ----------
+    public const int DefaultServerPort = 25565;
+    public const int ServerPingTimeoutMs = 5000;
+
+    // ---------- 默认设置 ----------
+    public const DownloadSourceKind DefaultDownloadSource = DownloadSourceKind.Bmclapi;
+    public const bool DefaultFallbackToOfficial = true;
+    public const bool DefaultUseDeviceCodeFallback = true;
+    public const int DefaultMaxConcurrency = 8;
+    public const bool DefaultAnimationsEnabled = true;
+
+    // ---------- 实例默认值 ----------
+    public const string DefaultInstanceName = "默认实例";
+    public const string DefaultInstanceVersion = "1.20.1";
+    public const int DefaultMinMemoryMb = 1024;
+    public const int DefaultMaxMemoryMb = 4096;
+
+    // ---------- Minecraft 目录 ----------
+    public const string MinecraftVersionsDirectoryName = "versions";
+    public const string MinecraftModsDirectoryName = "mods";
+    public const string MinecraftSavesDirectoryName = "saves";
+    public const string MinecraftConfigDirectoryName = "config";
+    public const string MinecraftResourcePacksDirectoryName = "resourcepacks";
+    public const string MinecraftShaderPacksDirectoryName = "shaderpacks";
+
+    // ---------- 模组元数据 ----------
+    public const string QuiltModJsonFileName = "quilt.mod.json";
+    public const string FabricModJsonFileName = "fabric.mod.json";
+    public const string NeoForgeModsTomlPath = "META-INF/neoforge.mods.toml";
+    public const string ForgeModsTomlPath = "META-INF/mods.toml";
+    public const string DisabledModSuffix = ".disabled";
+
+    // ---------- 整合包 ----------
+    public const string ModrinthIndexFileName = "modrinth.index.json";
+    public const string CurseForgeManifestFileName = "manifest.json";
+    public const string ModpackOverridesDirectoryName = "overrides";
+    public const string DefaultModpackMinecraftVersion = "1.20.1";
+    public const string ModpackAuthor = "CraftStation";
+    public static readonly string[] ModpackExportDirectoryNames =
+    {
+        MinecraftConfigDirectoryName,
+        MinecraftResourcePacksDirectoryName,
+        MinecraftShaderPacksDirectoryName
+    };
+
+    // ---------- Java ----------
+    public static readonly string[] JavaVendorDirectoryNames =
+    {
+        "Java", "Eclipse Adoptium", "Microsoft", "Zulu", "Amazon Corretto", "BellSoft"
+    };
+}

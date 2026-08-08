@@ -1,0 +1,8 @@
+# Build output
+bin/
+obj/
+.vs/
+*.user
+
+# 真实配置：只保留本地，公开仓库只提交 Config.cs.example
+Config.cs
