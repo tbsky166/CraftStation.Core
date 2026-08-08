@@ -43,4 +43,4 @@ dotnet test ..\CraftStation.Tests
 
 ## 许可证
 
-待定（开源发布前补充）。
+本项目采用 [MIT 许可证](LICENSE)。
