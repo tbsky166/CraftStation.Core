@@ -5,6 +5,7 @@ using CmlLib.Core.Installers;
 using CmlLib.Core.ProcessBuilder;
 using CmlLib.Core.VersionMetadata;
 using CraftStation.Core.Models;
+using CraftStation.Core.Utils;
 
 namespace CraftStation.Core.Services;
 
@@ -85,6 +86,7 @@ public sealed class LauncherService : ILauncherService
             {
                 Name = metadata.Name,
                 Type = metadata.Type ?? "unknown",
+                Category = VersionCategoryUtil.GetCategory(metadata.Name, metadata.Type ?? "unknown"),
                 ReleaseTimeUtc = metadata.ReleaseTime.UtcDateTime,
                 IsInstalled = Directory.Exists(Path.Combine(
                     _settings.ResolveGameDirectory(), Config.MinecraftVersionsDirectoryName, metadata.Name))

@@ -4,6 +4,7 @@ public sealed class VersionInfo
 {
     public string Name { get; set; } = "";
     public string Type { get; set; } = "";
+    public string Category { get; set; } = "other";
     public DateTime? ReleaseTimeUtc { get; set; }
     public bool IsInstalled { get; set; }
 
