@@ -93,6 +93,16 @@ public sealed class JavaService : IJavaService
             }
         }
 
+        // Oracle 公共路径（javapath 快捷入口）
+        var oraclePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonProgramFiles),
+            "Oracle", "Java", "javapath", Config.JavaExecutableName);
+        if (File.Exists(oraclePath))
+            candidates.Add(oraclePath);
+
+        // 名字引导扫盘：只进入名称含 java 的目录（0 损伤、只读、限深度/次数）
+        await Task.Run(() => AddNameGuidedCandidates(candidates), ct);
+
         var result = new List<JavaInfo>();
         await Parallel.ForEachAsync(
             candidates.Distinct(StringComparer.OrdinalIgnoreCase),
@@ -117,6 +127,62 @@ public sealed class JavaService : IJavaService
             .ToList();
         _cacheStampUtc = DateTime.UtcNow;
         return _cache;
+    }
+
+    private static void AddNameGuidedCandidates(List<string> candidates)
+    {
+        var visits = 0;
+        foreach (var drive in DriveInfo.GetDrives())
+        {
+            if (drive.DriveType != DriveType.Fixed || !drive.IsReady)
+                continue;
+            WalkJavaFolders(drive.RootDirectory.FullName, candidates, 0, ref visits);
+            if (visits >= Config.JavaScanMaxDirectoryVisits)
+                break;
+        }
+    }
+
+    private static void WalkJavaFolders(
+        string dir,
+        List<string> candidates,
+        int depth,
+        ref int visits)
+    {
+        if (depth > Config.JavaScanMaxDepth || ++visits > Config.JavaScanMaxDirectoryVisits)
+            return;
+
+        string[] children;
+        try
+        {
+            children = Directory.GetDirectories(dir);
+        }
+        catch
+        {
+            return; // 无权限等目录直接跳过，保证只读不报错
+        }
+
+        foreach (var child in children)
+        {
+            var name = Path.GetFileName(child);
+            if (Config.JavaScanPrunedDirectoryNames.Contains(name, StringComparer.OrdinalIgnoreCase))
+                continue;
+
+            var direct = Path.Combine(child, Config.JavaExecutableName);
+            if (File.Exists(direct))
+                candidates.Add(direct);
+            var bin = Path.Combine(child, "bin", Config.JavaExecutableName);
+            if (File.Exists(bin))
+                candidates.Add(bin);
+
+            var containsJava =
+                name.Contains("java", StringComparison.OrdinalIgnoreCase) ||
+                name.StartsWith("jdk", StringComparison.OrdinalIgnoreCase) ||
+                name.StartsWith("jre", StringComparison.OrdinalIgnoreCase) ||
+                name.StartsWith("jbr", StringComparison.OrdinalIgnoreCase);
+            var isStructural = Config.JavaScanStructuralDirectoryNames.Contains(name, StringComparer.OrdinalIgnoreCase);
+            if (containsJava || isStructural)
+                WalkJavaFolders(child, candidates, depth + 1, ref visits);
+        }
     }
 
     public async Task<string?> FindRecommendedJavaAsync(int requiredMajorVersion, CancellationToken ct = default)
