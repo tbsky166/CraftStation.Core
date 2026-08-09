@@ -41,6 +41,8 @@ public static class Config
     public const string WebViewVirtualHostName = "app.local";
     public static string WebViewStartUrl => $"https://{WebViewVirtualHostName}/index.html";
     public const string WebViewBackgroundColorHex = "#0D0D0D";
+    public const string WebView2RuntimeDirectoryName = "WebView2Runtime";
+    public const string WebView2UserDataDirectoryName = "WebView2";
     public const int BridgeMaxLogLines = 2000;
 
     // ---------- 窗口 ----------
