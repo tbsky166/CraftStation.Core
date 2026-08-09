@@ -48,8 +48,8 @@ public static class Config
     // ---------- 窗口 ----------
     public const double WindowDefaultWidth = 1280;
     public const double WindowDefaultHeight = 820;
-    public const double WindowMinWidth = 960;
-    public const double WindowMinHeight = 600;
+    public const double WindowMinWidth = 720;
+    public const double WindowMinHeight = 480;
 
     // ---------- 微软登录 ----------
     public const string MicrosoftTenant = "consumers";
