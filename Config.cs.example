@@ -27,6 +27,8 @@ public static class Config
     public const string GameDirectoryName = ".minecraft";
     public const string InstancesDirectoryName = "instances";
     public const string LogsDirectoryName = "logs";
+    public const string CacheDirectoryName = "cache";
+    public const string VersionCacheFileName = "versions.json";
     public const string ConfigFileName = "config.json";
     public const string AccountsFileName = "accounts.bin";
     public const string OfflineAccountsFileName = "offline_accounts.json";
