@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using CmlLib.Core;
 using CmlLib.Core.Auth;
 using CmlLib.Core.Installers;
@@ -18,6 +19,11 @@ public sealed class LauncherService : ILauncherService
     private Process? _runningProcess;
     private readonly object _processLock = new();
     private readonly SemaphoreSlim _versionLock = new(1, 1);
+    private static readonly JsonSerializerOptions CacheJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = true
+    };
 
     public LauncherService(ISettingsService settings, IDownloadMirror mirror, ILogService logs)
     {
@@ -48,6 +54,11 @@ public sealed class LauncherService : ILauncherService
         }
     }
 
+    public bool IsVersionListLoaded => _launcher?.Versions != null;
+
+    private string VersionCachePath =>
+        Path.Combine(_settings.DataDirectory, Config.CacheDirectoryName, Config.VersionCacheFileName);
+
     public MinecraftLauncher Launcher => GetLauncher();
 
     private MinecraftLauncher GetLauncher()
@@ -71,12 +82,34 @@ public sealed class LauncherService : ILauncherService
             try
             {
                 if (refresh || launcher.Versions == null)
-                    await launcher.GetAllVersionsAsync(ct);
+                {
+                    try
+                    {
+                        await launcher.GetAllVersionsAsync(ct);
+                        await SaveVersionCacheAsync(launcher);
+                    }
+                    catch
+                    {
+                        if (refresh || launcher.Versions != null)
+                            throw;
+                        // 网络不可用时回退本地缓存，保证界面立即有数据
+                        var cached = await LoadVersionCacheAsync();
+                        if (cached.Count > 0)
+                            return cached;
+                        throw;
+                    }
+                }
             }
             finally
             {
                 _versionLock.Release();
             }
+        }
+
+        if (launcher.Versions == null)
+        {
+            var cached = await LoadVersionCacheAsync();
+            return cached.Count > 0 ? cached : Array.Empty<VersionInfo>();
         }
 
         var result = new List<VersionInfo>();
@@ -93,6 +126,66 @@ public sealed class LauncherService : ILauncherService
             });
         }
         return result;
+    }
+
+    private async Task SaveVersionCacheAsync(MinecraftLauncher launcher)
+    {
+        try
+        {
+            var items = new List<VersionCacheEntry>();
+            if (launcher.Versions != null)
+            {
+                foreach (var metadata in launcher.Versions)
+                {
+                    items.Add(new VersionCacheEntry
+                    {
+                        Name = metadata.Name,
+                        Type = metadata.Type ?? "unknown",
+                        ReleaseTimeUtc = metadata.ReleaseTime.UtcDateTime
+                    });
+                }
+            }
+            Directory.CreateDirectory(Path.GetDirectoryName(VersionCachePath)!);
+            await using var stream = File.Create(VersionCachePath);
+            await JsonSerializer.SerializeAsync(stream, items, CacheJsonOptions);
+        }
+        catch
+        {
+            // 缓存写入失败不影响主流程
+        }
+    }
+
+    private async Task<List<VersionInfo>> LoadVersionCacheAsync()
+    {
+        try
+        {
+            if (!File.Exists(VersionCachePath))
+                return new List<VersionInfo>();
+            await using var stream = File.OpenRead(VersionCachePath);
+            var list = await JsonSerializer.DeserializeAsync<List<VersionCacheEntry>>(stream, CacheJsonOptions);
+            if (list == null)
+                return new List<VersionInfo>();
+            return list.Select(v => new VersionInfo
+            {
+                Name = v.Name,
+                Type = v.Type,
+                Category = VersionCategoryUtil.GetCategory(v.Name, v.Type),
+                ReleaseTimeUtc = v.ReleaseTimeUtc,
+                IsInstalled = Directory.Exists(Path.Combine(
+                    _settings.ResolveGameDirectory(), Config.MinecraftVersionsDirectoryName, v.Name))
+            }).ToList();
+        }
+        catch
+        {
+            return new List<VersionInfo>();
+        }
+    }
+
+    private sealed class VersionCacheEntry
+    {
+        public string Name { get; set; } = "";
+        public string Type { get; set; } = "";
+        public DateTime? ReleaseTimeUtc { get; set; }
     }
 
     public async Task InstallAsync(string versionId, IProgress<DownloadProgress>? progress = null, CancellationToken ct = default)

@@ -6,6 +6,7 @@ namespace CraftStation.Core.Services;
 public interface ILauncherService
 {
     MinecraftLauncher Launcher { get; }
+    bool IsVersionListLoaded { get; }
     Task<IReadOnlyList<VersionInfo>> GetVersionsAsync(bool refresh = false, CancellationToken ct = default);
     Task InstallAsync(string versionId, IProgress<DownloadProgress>? progress = null, CancellationToken ct = default);
     Task DeleteVersionAsync(string versionId);
