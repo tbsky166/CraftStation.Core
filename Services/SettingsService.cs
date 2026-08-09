@@ -14,7 +14,7 @@ public sealed class SettingsService : ISettingsService
     public SettingsService(string? launcherRoot = null)
     {
         LauncherRoot = string.IsNullOrWhiteSpace(launcherRoot)
-            ? AppContext.BaseDirectory
+            ? ResolveDefaultLauncherRoot()
             : Path.GetFullPath(launcherRoot);
         DataDirectory = Path.Combine(LauncherRoot, Config.DataDirectoryName);
         DefaultGameDirectory = Path.Combine(LauncherRoot, Config.GameDirectoryName);
@@ -23,6 +23,27 @@ public sealed class SettingsService : ISettingsService
         AccountsFile = Path.Combine(DataDirectory, Config.AccountsFileName);
         OfflineAccountsFile = Path.Combine(DataDirectory, Config.OfflineAccountsFileName);
         ConfigFile = Path.Combine(DataDirectory, Config.ConfigFileName);
+    }
+
+    private static string ResolveDefaultLauncherRoot()
+    {
+        var baseDir = AppContext.BaseDirectory;
+        try
+        {
+            // 探测 exe 同级目录是否可写：可写则保持便携布局（data/.minecraft 在 exe 旁）
+            Directory.CreateDirectory(baseDir);
+            var probe = Path.Combine(baseDir, $".write-test-{Guid.NewGuid():N}.tmp");
+            File.WriteAllText(probe, "");
+            File.Delete(probe);
+            return baseDir;
+        }
+        catch
+        {
+            // Program Files 等只读目录：数据改放到 LocalAppData，避免启动即崩溃
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                Config.AppName);
+        }
     }
 
     public LauncherSettings Settings { get; private set; } = new();
