@@ -10,6 +10,6 @@ public sealed class JavaInfo
 
 public interface IJavaService
 {
-    Task<IReadOnlyList<JavaInfo>> ScanInstalledJavaAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<JavaInfo>> ScanInstalledJavaAsync(bool refresh = false, CancellationToken ct = default);
     Task<string?> FindRecommendedJavaAsync(int requiredMajorVersion, CancellationToken ct = default);
 }

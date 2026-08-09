@@ -5,19 +5,43 @@ namespace CraftStation.Core.Services;
 
 public sealed class JavaService : IJavaService
 {
-    public async Task<IReadOnlyList<JavaInfo>> ScanInstalledJavaAsync(CancellationToken ct = default)
+    private readonly ISettingsService _settings;
+    private IReadOnlyList<JavaInfo>? _cache;
+    private DateTime _cacheStampUtc;
+
+    public JavaService(ISettingsService settings)
     {
+        _settings = settings;
+    }
+
+    public async Task<IReadOnlyList<JavaInfo>> ScanInstalledJavaAsync(
+        bool refresh = false,
+        CancellationToken ct = default)
+    {
+        if (!refresh &&
+            _cache != null &&
+            DateTime.UtcNow - _cacheStampUtc < TimeSpan.FromSeconds(Config.JavaScanCacheSeconds))
+        {
+            return _cache;
+        }
+
         var candidates = new List<string>();
         var javaHome = Environment.GetEnvironmentVariable("JAVA_HOME");
+        var jdkHome = Environment.GetEnvironmentVariable("JDK_HOME");
         if (!string.IsNullOrWhiteSpace(javaHome))
-            candidates.Add(Path.Combine(javaHome, "bin", "java.exe"));
+            candidates.Add(Path.Combine(javaHome, "bin", Config.JavaExecutableName));
+        if (!string.IsNullOrWhiteSpace(jdkHome))
+            candidates.Add(Path.Combine(jdkHome, "bin", Config.JavaExecutableName));
 
-        var roots = new[]
+        var roots = new List<string>
         {
             Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            Environment.GetEnvironmentVariable("ProgramW6432") ?? "",
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".jdks")
         };
-        foreach (var root in roots)
+        foreach (var root in roots.Distinct(StringComparer.OrdinalIgnoreCase))
         {
             if (string.IsNullOrEmpty(root) || !Directory.Exists(root))
                 continue;
@@ -28,26 +52,76 @@ public sealed class JavaService : IJavaService
                     continue;
                 foreach (var jdk in Directory.EnumerateDirectories(vendorDir))
                 {
-                    var exe = Path.Combine(jdk, "bin", "java.exe");
+                    var exe = Path.Combine(jdk, "bin", Config.JavaExecutableName);
                     if (File.Exists(exe))
                         candidates.Add(exe);
                 }
             }
         }
 
-        var result = new List<JavaInfo>();
-        foreach (var path in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+        // JetBrains Toolbox 自带的 JBR
+        var toolboxApps = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "JetBrains", "Toolbox", "apps");
+        if (Directory.Exists(toolboxApps))
         {
-            var info = await ReadJavaInfoAsync(path, ct);
-            if (info != null)
-                result.Add(info);
+            foreach (var ide in Directory.EnumerateDirectories(toolboxApps))
+            {
+                foreach (var build in Directory.EnumerateDirectories(ide))
+                {
+                    foreach (var binDir in new[] { "jbr", "jre" })
+                    {
+                        var exe = Path.Combine(build, binDir, "bin", Config.JavaExecutableName);
+                        if (File.Exists(exe))
+                            candidates.Add(exe);
+                    }
+                }
+            }
         }
-        return result;
+
+        // Minecraft 官方运行时（.minecraft/runtime/java-runtime-*）
+        foreach (var gameDir in new[] { _settings.ResolveGameDirectory(), _settings.DefaultGameDirectory })
+        {
+            var runtimeRoot = Path.Combine(gameDir, Config.MinecraftRuntimeDirectoryName);
+            if (!Directory.Exists(runtimeRoot))
+                continue;
+            foreach (var runtime in Directory.EnumerateDirectories(runtimeRoot))
+            {
+                var exe = Path.Combine(runtime, "bin", Config.JavaExecutableName);
+                if (File.Exists(exe))
+                    candidates.Add(exe);
+            }
+        }
+
+        var result = new List<JavaInfo>();
+        await Parallel.ForEachAsync(
+            candidates.Distinct(StringComparer.OrdinalIgnoreCase),
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = Config.JavaScanMaxDegreeOfParallelism,
+                CancellationToken = ct
+            },
+            async (path, token) =>
+            {
+                var info = await ReadJavaInfoAsync(path, token);
+                if (info != null)
+                {
+                    lock (result)
+                        result.Add(info);
+                }
+            });
+
+        _cache = result
+            .OrderBy(j => j.MajorVersion)
+            .ThenBy(j => j.Version, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        _cacheStampUtc = DateTime.UtcNow;
+        return _cache;
     }
 
     public async Task<string?> FindRecommendedJavaAsync(int requiredMajorVersion, CancellationToken ct = default)
     {
-        var installed = await ScanInstalledJavaAsync(ct);
+        var installed = await ScanInstalledJavaAsync(ct: ct);
         return installed
             .Where(j => j.MajorVersion == requiredMajorVersion)
             .OrderByDescending(j => j.Version)
@@ -68,8 +142,34 @@ public sealed class JavaService : IJavaService
             using var process = Process.Start(psi);
             if (process == null)
                 return null;
-            var output = await process.StandardError.ReadToEndAsync(ct) + await process.StandardOutput.ReadToEndAsync(ct);
-            await process.WaitForExitAsync(ct);
+
+            var errTask = process.StandardError.ReadToEndAsync(ct);
+            var outTask = process.StandardOutput.ReadToEndAsync(ct);
+            try
+            {
+                await process.WaitForExitAsync(ct)
+                    .WaitAsync(TimeSpan.FromSeconds(Config.JavaScanTimeoutSeconds), ct);
+            }
+            catch (TimeoutException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { /* 忽略 */ }
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { /* 忽略 */ }
+                return null;
+            }
+
+            string output;
+            try
+            {
+                output = await errTask + await outTask;
+            }
+            catch
+            {
+                return null;
+            }
+
             var match = Regex.Match(output, @"version\s+\""([^\""]+)\""", RegexOptions.IgnoreCase);
             var vendor = output.Split('\n').FirstOrDefault()?.Trim() ?? "";
             var version = match.Success ? match.Groups[1].Value : "unknown";
